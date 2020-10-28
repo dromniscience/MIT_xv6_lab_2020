@@ -95,3 +95,38 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_trace(void)
+{
+	int traced;
+	
+	if(argint(0, &traced) < 0)
+		return -1;
+	
+	myproc()->traced = traced;
+	return 0;
+}
+
+
+uint64 nproc(void);
+uint64 kfreemem(void);
+#include "sysinfo.h"
+
+uint64
+sys_sysinfo(void)
+{
+	uint64 p;
+	
+	if(argaddr(0, &p) < 0)
+		return -1;
+		
+	struct sysinfo tmp;
+	tmp.freemem = kfreemem();
+	tmp.nproc = nproc();
+	
+	if(copyout(myproc()->pagetable, p, (char *)&tmp, sizeof(tmp)) < 0)
+      return -1;
+	
+	return 0;
+}
