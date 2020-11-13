@@ -1,8 +1,8 @@
 
 xv6 kernel is booting
 
-hart 1 starting
 hart 2 starting
+hart 1 starting
 init: starting sh
 $ usertests
 usertests starting
@@ -189,4 +189,4 @@ test iref: OK
 test forktest: OK
 test bigdir: OK
 ALL TESTS PASSED
-$ qemu-system-riscv64: terminating on signal 15 from pid 8735 (make)
+$ qemu-system-riscv64: terminating on signal 15 from pid 3162 (make)
