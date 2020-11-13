@@ -85,7 +85,7 @@ struct trapframe {
 // 	kernel_sp & kernel_hartid must NOT be saved!!!
 // 	Besides, kernel_trap & kernel_satp need not to be saved.
 // 	But it will be fine if you insist to save them.
-// ALL general-purpose registers must BE saved!!!
+// ALL general-purpose registers except for x0 must BE saved!!!
 // 	It is apparent that caller-saved registers should be saved, for their value
 // can be overwritten by the handler.
 // 	Surprisingly, callee-saved registers should be saved as well. Though it seems
