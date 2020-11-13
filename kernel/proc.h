@@ -80,6 +80,57 @@ struct trapframe {
   /* 280 */ uint64 t6;
 };
 
+
+// CAUTION!!!
+// 	kernel_sp & kernel_hartid must NOT be saved!!!
+// 	Besides, kernel_trap & kernel_satp need not to be saved.
+// 	But it will be fine if you insist to save them.
+// ALL registers must BE saved!!!
+// 	It is apparent that caller-saved registers should be saved, for their value
+// can be overwritten by the handler.
+// 	Surprisingly, callee-saved registers should be saved as well. Though it seems
+// that their value will be restored to the original value when the handler
+// is about to return, the fact is that compiler has no idea sigreturn() will
+// never return, so the handler would try to restore callee-saved registers after
+// calling sigreturn(), which surely never happens.
+//  You can refer to user/usertest.asm:periodic to check the behavior
+// near calling sigreturn().
+struct alarmframe {
+  /*   0 */ uint64 epc;           // saved user program counter
+  /*   8 */ uint64 ra;
+  /*  16 */ uint64 sp;
+  /*  24 */ uint64 gp;
+  /*  32 */ uint64 tp;
+  /*  40 */ uint64 t0;
+  /*  48 */ uint64 t1;
+  /*  56 */ uint64 t2;
+  /*  64 */ uint64 s0;
+  /*  72 */ uint64 s1;
+  /*  80 */ uint64 a0;
+  /*  88 */ uint64 a1;
+  /*  96 */ uint64 a2;
+  /* 104 */ uint64 a3;
+  /* 112 */ uint64 a4;
+  /* 120 */ uint64 a5;
+  /* 128 */ uint64 a6;
+  /* 136 */ uint64 a7;
+  /* 144 */ uint64 s2;
+  /* 152 */ uint64 s3;
+  /* 160 */ uint64 s4;
+  /* 168 */ uint64 s5;
+  /* 176 */ uint64 s6;
+  /* 184 */ uint64 s7;
+  /* 192 */ uint64 s8;
+  /* 200 */ uint64 s9;
+  /* 208 */ uint64 s10;
+  /* 216 */ uint64 s11;
+  /* 224 */ uint64 t3;
+  /* 232 */ uint64 t4;
+  /* 240 */ uint64 t5;
+  /* 248 */ uint64 t6;
+};
+
+
 enum procstate { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // Per-process state
@@ -103,4 +154,11 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  
+  // also private to the process
+  int		ticks;
+  void (*handler)();
+  int		ticksleft;
+  struct alarmframe alarmframe;
+  int		in_handler;
 };

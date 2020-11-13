@@ -10,6 +10,7 @@ struct spinlock tickslock;
 uint ticks;
 
 extern char trampoline[], uservec[], userret[];
+void cptrap2alarm(struct trapframe *, struct alarmframe *);
 
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
@@ -77,8 +78,23 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  if(which_dev == 2){
+    // Check whether it's time to call the handler
+    if(p->ticks > 0 && !p->in_handler){
+    	p->ticksleft -= 1;
+    	if(p->ticksleft < 0)
+    		panic("usertrap(): negative alarming time detected\n");
+    	if(p->ticksleft == 0){
+    		p->in_handler = 1;
+    		p->ticksleft = p->ticks;
+    		
+    		if(p->killed) exit(-1);
+    		cptrap2alarm(p->trapframe, &(p->alarmframe));
+    		p->trapframe->epc = (uint64)(p->handler);
+    	}
+    }
     yield();
+  }
 
   usertrapret();
 }
@@ -218,3 +234,39 @@ devintr()
   }
 }
 
+
+void cptrap2alarm(struct trapframe *p, struct alarmframe *q)
+{
+	q->epc = p->epc;
+	q->ra = p->ra;
+	q->sp = p->sp;
+	q->gp = p->gp;
+	q->tp = p->tp;
+	q->t0 = p->t0;
+	q->t1 = p->t1;
+	q->t2 = p->t2;
+	q->s0 = p->s0;
+	q->s1 = p->s1;
+	q->a0 = p->a0;
+	q->a1 = p->a1;
+	q->a2 = p->a2;
+	q->a3 = p->a3;
+	q->a4 = p->a4;
+	q->a5 = p->a5;
+	q->a6 = p->a6;
+	q->a7 = p->a7;
+	q->s2 = p->s2;
+	q->s3 = p->s3;
+	q->s4 = p->s4;
+	q->s5 = p->s5;
+	q->s6 = p->s6;
+	q->s7 = p->s7;
+	q->s8 = p->s8;
+	q->s9 = p->s9;
+	q->s10 = p->s10;
+	q->s11 = p->s11;
+	q->t3 = p->t3;
+	q->t4 = p->t4;
+	q->t5 = p->t5;
+	q->t6 = p->t6;
+}

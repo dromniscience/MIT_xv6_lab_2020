@@ -1,0 +1,43 @@
+#
+# Which registers contain arguments to functions? For example, which register holds 13 in main's call to printf?
+#
+
+a0-a7 hold the integer arguments. Since 13 is the third argument of printf, it should be set in a2.
+
+
+#
+# Where is the call to function f in the assembly code for main? Where is the call to g?
+#
+
+They are automatically inlined. f will return x + 3 at once. If a constant is given to f at compiling time, it will be immediately evaluated since the function incurs no side effect.
+
+
+#
+# At what address is the function printf located?
+#
+
+	30:	00000097          	auipc	ra,0x0
+  34:	600080e7          	jalr	1536(ra) # 630 <printf>
+
+It locates at address (1536)10 + (30)16 = (630)16, where the value outside the parenthesis indicates the base.
+
+
+#
+# What value is in the register ra just after the jalr to printf in main?
+#
+
+It holds the return address, namely that of the next instruction. In this case, it is 0x38.
+
+
+#
+# What is the output?
+#
+
+HE110 World
+
+
+#
+# what is going to be printed after 'y='? 
+#
+
+It prints the current value stored at ap, which holds former value of a2 when calling printf. 

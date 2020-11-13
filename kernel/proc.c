@@ -127,6 +127,13 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+	// Set up ticks and the handler
+	p->ticks = 0; // Must appear before p->ticksleft = 0;
+	p->handler = (void (*)())0;
+	p->ticksleft = 0;
+	p->in_handler = 0;
+	memset(&p->alarmframe, 0, sizeof(p->alarmframe));
+	
   return p;
 }
 
