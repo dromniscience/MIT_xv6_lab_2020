@@ -121,6 +121,14 @@ kvmmap(uint64 va, uint64 pa, uint64 sz, int perm)
     panic("kvmmap");
 }
 
+// add a mapping to a per-process page table
+void
+uvmkmap(pagetable_t pagetable, uint64 va, uint64 pa, uint64 sz, int perm)
+{
+  if(mappages(pagetable, va, sz, pa, perm) != 0)
+    panic("uvmkmap");
+}
+
 // translate a kernel virtual address to
 // a physical address. only needed for
 // addresses on the stack.
@@ -335,6 +343,35 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   return -1;
 }
 
+// Given a parent process's user page table, copy
+// its memory into a child's kernel page table.
+// Only copies the user page table.
+// returns 0 on success, -1 on failure.
+// frees any allocated pages on failure.
+int
+uvmkcopy(pagetable_t user, pagetable_t kernel, uint64 sz)
+{
+  pte_t *pte;
+  uint64 pa, i;
+  uint flags;
+  char *mem;
+
+  for(i = 0; i < sz; i += PGSIZE){
+    if((pte = walk(user, i, 0)) == 0)
+      panic("uvmcopy: pte should exist");
+    if((*pte & PTE_V) == 0)
+      panic("uvmcopy: page not present");
+    pa = PTE2PA(*pte);
+    flags = PTE_R | PTE_W | PTE_X | PTE_V;
+
+    if(mappages(kernel, i, PGSIZE, (uint64)pa, flags) != 0){
+      uvmunmap(kernel, 0, i / PGSIZE, 0);
+  		return -1;
+    }
+  }
+  return 0;
+}
+
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
 void
@@ -379,6 +416,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
+	return copyin_new(pagetable, dst, srcva, len);
+/*
   uint64 n, va0, pa0;
 
   while(len > 0){
@@ -396,6 +435,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     srcva = va0 + PGSIZE;
   }
   return 0;
+*/
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -405,6 +445,8 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
+	return copyinstr_new(pagetable, dst, srcva, max);
+/*
   uint64 n, va0, pa0;
   int got_null = 0;
 
@@ -439,6 +481,7 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+*/
 }
 
 // display each entry whose PTE_V is 1 within a given root pagetable 

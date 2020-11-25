@@ -1,0 +1,73 @@
+// kalloc.c
+
+void *kalloc(void);
+	1. allocate a page from the head of free list.
+	2. Return the pa of current page.
+	3. On failure(no free page available), return 0
+
+void kfree(void *pa);
+	1. add a physical page to free list [end, PHYSTOP];
+	
+void freerange(void *pa_start, void *pa_end);
+	1. add [pa_start, pa_end] to free list. Invoked only from scratch
+
+void kinit();
+	1. freerange(end, PHYSTOP);
+
+// vm.c
+pte_t * walk(pagetable_t pagetable, uint64 va, int alloc);
+	1. use va to index into pagetable (level 2) to get the pte (level 0).
+	2. if alloc is non-zero, allocate a page table if PTE_V is not set
+	3. on a error 0 is returned
+	
+uint64 walkaddr(pagetable_t pagetable, uint64 va);
+	1. return the pa of va using a user page table
+	2. on a error (e.g. PTE_V or PTE_U is 0), return 0
+	
+int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm);
+	1. Create PTEs for va that refers to pa with perm | PTE_V (along the way)
+	2. va & pa need not be aligned
+	3. return 0 on success, -1 otherwise (walk() fail to allocate or remapped)
+
+void kvmmap(uint64 va, uint64 pa, uint64 sz, int perm);
+	1. add a mapping to the kernel page table. (no allocating physical pages)
+	2. by default, kernel_pagetable
+	3. a simple wrapper of mappages()
+	
+void kvminit();
+	1. set up kernel_pagetable except for kernel stack
+
+void kvminithart();
+	1. enable paging
+	
+uint64 kvmpa(uint64 va);
+	1. use kernel_pagetable to translate va to pa
+
+void freewalk(pagetable_t pagetable);
+	1. Recursively free page table page;
+			Use ((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X)) == 0) to identify a page table page
+	2. All leaf mappings must already have been removed.
+
+void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free);
+	1. Free physical page (when do_free is set) & clear PTE of level 0;
+
+pagetable_t uvmcreate();
+	1. only create an empty user page (logically as a user pagetable, so memset to 0);
+	2. return 0 if running of memory
+
+void uvmfree(pagetable_t pagetable, uint64 sz);
+	1. free the user pages, and then the whole page table pages
+	
+void uvmclear(pagetable_t pagetable, uint64 va);
+	1. mark a PTE invalid for user access.(used by exec for the user stack guard page.)
+
+int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz);
+	1. copy parent to child (both page table & user page content)
+	2. returns 0 on success, -1 on failure(but only frees user page, page table page is just cleared).
+	
+uint64 uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
+	1. allocate user pages and register it in the pagetable
+	2. Returns new size or 0 on error.
+
+uint64 uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
+	1. simple wrapper function for uvmunmap
