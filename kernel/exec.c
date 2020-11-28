@@ -107,7 +107,13 @@ exec(char *path, char **argv)
     if(*s == '/')
       last = s+1;
   safestrcpy(p->name, last, sizeof(p->name));
-    
+
+	// update user space in the kernel page table
+	uvmkshrink(p->kpagetable, p->sz, 0);
+	// printf("exec before\n");
+	uvmkcopy(pagetable, p->kpagetable, 0, sz);
+	// printf("exec after\n");
+	
   // Commit to the user image.
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;

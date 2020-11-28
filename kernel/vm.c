@@ -277,6 +277,24 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
   return newsz;
 }
 
+// shrink user space in kernel page table from oldsz to
+// newsz.  oldsz and newsz need not be page-aligned, nor does newsz
+// need to be less than oldsz.  oldsz can be larger than the actual
+// process size.  Returns 0 on success, and -1 otherwise.
+uint64
+uvmkshrink(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  if(newsz >= oldsz)
+    return -1;
+
+  if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
+    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
+    uvmunmap(pagetable, PGROUNDUP(newsz), npages, 0);
+  }
+
+  return newsz;
+}
+
 // Recursively free page-table pages.
 // All leaf mappings must already have been removed.
 void
@@ -343,32 +361,49 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   return -1;
 }
 
-// Given a parent process's user page table, copy
-// its memory into a child's kernel page table.
+// Given a process's user page table, copy
+// its memory into a kernel page table.
 // Only copies the user page table.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
+// [st, end) of user space is identically mapped to kernel space
+// Alignment is not required, and thereby st should be rounded up.
 int
-uvmkcopy(pagetable_t user, pagetable_t kernel, uint64 sz)
+uvmkcopy(pagetable_t user, pagetable_t kernel, uint64 st, uint64 end)
 {
-  /*pte_t *pte;
+  pte_t *pte, *dst;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  
+  if(end < st)
+    return -1;
 
-  for(i = 0; i < sz; i += PGSIZE){
+  for(i = PGROUNDUP(st); i < end; i += PGSIZE){
     if((pte = walk(user, i, 0)) == 0)
-      panic("uvmcopy: pte should exist");
+      panic("uvmkcopy: pte should exist");
     if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
+      panic("uvmkcopy: page not present");
+    
+    // should not perform the following checkout
+    //	if((*pte & PTE_U) == 0)
+    //  	panic("uvmkcopy: not a user page");
+    // since the guard page of the user is intentionally set PTE_U to 0
+    
     pa = PTE2PA(*pte);
-    flags = PTE_R | PTE_W | PTE_X | PTE_V;
+    flags = ~PTE_U & PTE_FLAGS(*pte);
 
-    if(mappages(kernel, i, PGSIZE, (uint64)pa, flags) != 0){
-      uvmunmap(kernel, 0, i / PGSIZE, 0);
-  		return -1;
-    }
-  }*/
+		// Since it is possible to overwrite the CLINT page,
+		// we have to do this binding by ourself,
+		// instead of calling mappages in the following way:
+    // if(mappages(kernel, i, PGSIZE, (uint64)pa, flags) != 0){
+    //  uvmunmap(kernel, 0, i / PGSIZE, 0);
+  	//	return -1;
+    // }
+    
+    if ((dst = walk(kernel, i, 1)) == 0)
+      panic("uvmkcopy: walk fails");
+    *dst = PA2PTE(pa) | flags;
+  }
   return 0;
 }
 
@@ -416,7 +451,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
-	// return copyin_new(pagetable, dst, srcva, len);
+	return copyin_new(pagetable, dst, srcva, len);
+  /*
   uint64 n, va0, pa0;
 
   while(len > 0){
@@ -434,6 +470,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     srcva = va0 + PGSIZE;
   }
   return 0;
+  */
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -443,7 +480,8 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
-	// return copyinstr_new(pagetable, dst, srcva, max);
+	return copyinstr_new(pagetable, dst, srcva, max);
+  /*
   uint64 n, va0, pa0;
   int got_null = 0;
 
@@ -478,6 +516,7 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+  */
 }
 
 // display each entry whose PTE_V is 1 within a given root pagetable 

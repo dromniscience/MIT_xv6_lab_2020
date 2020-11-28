@@ -307,6 +307,9 @@ userinit(void)
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
+	// update the direct map of user page in the kernel page as well
+	uvmkcopy(p->pagetable, p->kpagetable, 0, PGSIZE);
+	
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
@@ -327,13 +330,28 @@ growproc(int n)
   uint sz;
   struct proc *p = myproc();
 
+	// prevent the user space from growing too large
+	if (PGROUNDUP(p->sz + n) >= PLIC)
+      return -1;
+
   sz = p->sz;
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
     }
+    
+    // extend user space in the kernel page table
+    // printf("grow before %d %d\n", p->sz, sz);
+    uvmkcopy(p->pagetable, p->kpagetable, p->sz, sz);
+    // printf("grow after\n");
+    
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
+    
+    // shrink user space in the kernel page table
+    // printf("shrink before\n");
+    uvmkshrink(p->kpagetable, p->sz, sz);
+  	// printf("shrink after\n");
   }
   p->sz = sz;
   return 0;
@@ -360,12 +378,14 @@ fork(void)
     return -1;
   }
   
-  // Copy the parent's page table to the child's kernel page table
-  /*if(uvmkcopy(p->pagetable, np->kpagetable, p->sz) < 0){
+  // printf("fork before\n");
+  // Copy user space from the child's user page table
+  if(uvmkcopy(np->pagetable, np->kpagetable, 0, p->sz) < 0){
     freeproc(np);
     release(&np->lock);
     return -1;
-  }*/
+  }
+  // printf("fork after\n");
   
   np->sz = p->sz;
 
