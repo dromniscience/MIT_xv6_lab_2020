@@ -351,7 +351,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 int
 uvmkcopy(pagetable_t user, pagetable_t kernel, uint64 sz)
 {
-  pte_t *pte;
+  /*pte_t *pte;
   uint64 pa, i;
   uint flags;
   char *mem;
@@ -368,7 +368,7 @@ uvmkcopy(pagetable_t user, pagetable_t kernel, uint64 sz)
       uvmunmap(kernel, 0, i / PGSIZE, 0);
   		return -1;
     }
-  }
+  }*/
   return 0;
 }
 
@@ -416,8 +416,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 int
 copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 {
-	return copyin_new(pagetable, dst, srcva, len);
-/*
+	// return copyin_new(pagetable, dst, srcva, len);
   uint64 n, va0, pa0;
 
   while(len > 0){
@@ -435,7 +434,6 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
     srcva = va0 + PGSIZE;
   }
   return 0;
-*/
 }
 
 // Copy a null-terminated string from user to kernel.
@@ -445,8 +443,7 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 int
 copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
 {
-	return copyinstr_new(pagetable, dst, srcva, max);
-/*
+	// return copyinstr_new(pagetable, dst, srcva, max);
   uint64 n, va0, pa0;
   int got_null = 0;
 
@@ -481,7 +478,6 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
-*/
 }
 
 // display each entry whose PTE_V is 1 within a given root pagetable 

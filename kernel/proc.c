@@ -361,11 +361,11 @@ fork(void)
   }
   
   // Copy the parent's page table to the child's kernel page table
-  if(uvmkcopy(p->pagetable, np->kpagetable, p->sz) < 0){
+  /*if(uvmkcopy(p->pagetable, np->kpagetable, p->sz) < 0){
     freeproc(np);
     release(&np->lock);
     return -1;
-  }
+  }*/
   
   np->sz = p->sz;
 
