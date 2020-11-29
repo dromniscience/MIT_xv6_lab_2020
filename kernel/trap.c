@@ -71,15 +71,14 @@ usertrap(void)
   	// page fault due to lazy allocation
   	char *mem;
   	uint64 va = r_stval();
-  	if(va > myproc()->sz) p->killed = 1;
+  	
+  	if(va >= p->sz || va <= PGROUNDDOWN(p->trapframe->sp)) p->killed = 1;
   	else va = PGROUNDDOWN(va);
   	
     if(!p->killed){
     	mem = kalloc();
-    	if(mem == 0){
-      	printf("usertrap(): no available user memory\n");
-     	p->killed = 1;
-    	}
+    	if(mem == 0)
+    		p->killed = 1;
     }
     
     if(!p->killed){
