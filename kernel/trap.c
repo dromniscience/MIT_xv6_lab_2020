@@ -67,6 +67,30 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if(r_scause() == 0xD || r_scause() == 0xF){
+  	// page fault due to lazy allocation
+  	char *mem;
+  	uint64 va = r_stval();
+  	if(va > myproc()->sz) p->killed = 1;
+  	else va = PGROUNDDOWN(va);
+  	
+    if(!p->killed){
+    	mem = kalloc();
+    	if(mem == 0){
+      	printf("usertrap(): no available user memory\n");
+     	p->killed = 1;
+    	}
+    }
+    
+    if(!p->killed){
+    	memset(mem, 0, PGSIZE);
+    	// heap region, so it is not executable
+    	if(mappages(myproc()->pagetable, va, PGSIZE, (uint64)mem, PTE_W|PTE_R|PTE_U) != 0){
+      	kfree(mem);
+      	printf("usertrap(): mapping page failed\n");
+      	p->killed = 1;
+    	}
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
