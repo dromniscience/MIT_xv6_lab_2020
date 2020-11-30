@@ -332,6 +332,21 @@ sfence_vma()
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4) // 1 -> user can access
 
+// COW
+#define PTE_COW (1L << 8) // COW page
+#define PTE_ST	(1L << 9) // temporarily store PTE_W
+
+// Physical address to INDEX
+#define PA2IDX(pa)		((((uint64) (pa) - KERNBASE)) >> 12)
+
+// Temporarily save and clear PTE_W
+// #define WPTE(pte)			((pte) & PTE_W)
+// #define SAVE(pte)			((WPTE(pte) << 7) | ((pte) ^ WPTE(pte)))
+
+// Restore PTE_W and clear PTE_ST
+// #define STPTE(pte)		((pte) & PTE_ST)
+// #define RESTORE(pte)	((STPTE(pte) >> 7) | ((pte) ^ STPTE(pte)))
+
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
 

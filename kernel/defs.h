@@ -63,6 +63,10 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+int 						get_rc(void *);
+int 						incre_rc(void *);
+int 						decre_rc(void *);
+
 
 // log.c
 void            initlog(int, struct superblock*);
@@ -145,6 +149,7 @@ void            trapinit(void);
 void            trapinithart(void);
 extern struct spinlock tickslock;
 void            usertrapret(void);
+int							pf_handler(uint64, int);
 
 // uart.c
 void            uartinit(void);
@@ -171,6 +176,8 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+pte_t *					walk(pagetable_t, uint64, int);
+
 
 // plic.c
 void            plicinit(void);

@@ -1,0 +1,52 @@
+1. refcnt[] in kalloc.c
+
+struct {
+	struct spinlock spinlock;
+	int refcnt[??];
+} kcnt;
+
+	with spinlock
+	get_rc
+	incre_rc // incre and get
+	decre_rc // decre and get
+
+2. initialize refcnt[] to 1 in kinit (kalloc.c)
+	cause kfree need to -1
+
+3. kfree -1 before really judging whether to free
+
+4. kalloc should incr it by 1
+	if it's not 1, raise error
+
+5. have to add a PTE_COW bit (refcnt cannot be used as indicator, since a COW page could only be possessed by a single process)
+
+6. pf_handler
+	1) scause() == 0xF
+	2) check the address
+	
+// page fault
+	
+	3) no PTE_W, but PTE_COW
+	
+	// race?
+	
+	4) decrease refcnt
+	5) allocate a page
+	6) copy content
+	7) modify page table entry (register pa, set PTE_W, erase PTE_COW) (interchanged)
+	// avoid race.
+	// always have to check it (even if failed before)
+	8) if refcnt == 0:
+			increase refcnt
+			kfree(oldpage)
+	
+	9) p->killed
+
+7. fork
+  // only fork invokes uvmcopy
+  1) copy parent's page table to child & increase refcnt
+  2) clear PTE_W in both child and parent (interchanged)
+  3) set PTE_COW in both child and parent
+  
+8. copyout
+	1) page_fault

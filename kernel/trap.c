@@ -67,6 +67,17 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if (r_scause() == 0xF){
+  	// COW
+  	// r_scause() == 0xF means a store page fault
+  	
+  	uint64 va = r_stval();
+  	// Check the address
+  	if(va < PGROUNDDOWN(p->trapframe->sp) && va >= PGROUNDDOWN(p->trapframe->sp - PGSIZE))
+  		p->killed = 1;
+  	// invoke page fault handler
+  	if(pf_handler(va, 1) != 0)
+  		p->killed = 1;
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
@@ -218,3 +229,43 @@ devintr()
   }
 }
 
+// COW
+// Page Fault Handler
+// Assume the virtual address to be valid.
+// Return 0 on success, and -1 on error.
+// va may not be page-aligned.
+int
+pf_handler(uint64 va, int check)
+{
+	struct proc *p = myproc();
+	pte_t *ptr;
+	if((ptr = walk(p->pagetable, va, 0)) == 0){
+		printf("pf_handler: unmapped page\n");
+		return -1;
+	}
+	
+	if((*ptr & PTE_W) || (*ptr & PTE_COW) == 0){
+		if(check){
+			printf("pf_handler: permission not match\n");
+			return -1;
+		}
+		else return 0;
+	}
+	
+	void *pa = (void *)PTE2PA(*ptr); // page aligned
+	uint64 flags = PTE_FLAGS(*ptr);
+	
+	char *mem = kalloc();
+	if(mem){
+		memmove(mem, pa, PGSIZE);
+		
+		// If failure, pa will be freed by exit(),
+		// since we have not clear the pte
+		kfree(pa);
+		
+    flags = (flags & ~PTE_COW) | PTE_W;
+    *ptr = PA2PTE((uint64)mem) | flags;
+	}
+	
+	return -(!mem);
+}
