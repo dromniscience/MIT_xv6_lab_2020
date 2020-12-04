@@ -1,0 +1,37 @@
+Bucket
+0	| |---->| |---->| |
+1 | |
+2 | |---->| |
+3 | |
+
+Suppose thread 0 & 1 both want to insert a new node into bucket 0, and call insert()
+in parallel after checking that their keys is not present.
+
+Shortly afterwards, they execute
+struct entry *e = malloc(sizeof(struct entry));
+e->key = key;
+e->value = value;
+both well, where e refers to the new node just allocated.
+
+But if they both finish executing e->next = n before any one starts to carry out *p = e,
+the picture is somewhat like
+
+Bucket
+		| |----+----| |
+					 |
+0 | |---->| |---->| |
+1 | |
+2 | |---->| |
+3 | |
+
+and the result would be incorrect:
+
+Bucket
+					| |------+
+									 |
+0 | |---->| |---->| |---->| |
+1 | |
+2 | |---->| |
+3 | |
+
+
