@@ -10,6 +10,7 @@
 #include "defs.h"
 
 void freerange(void *pa_start, void *pa_end);
+void *ksteal(const int cpu);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
@@ -21,12 +22,16 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-} kmem;
+  // uint64 len;
+} kmem[NCPU];
 
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+	// Lock
+	// Called only once
+	for(int i = 0;i < NCPU;++i)
+  	initlock(&kmem[i].lock, "kmem");
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -35,6 +40,7 @@ freerange(void *pa_start, void *pa_end)
 {
   char *p;
   p = (char*)PGROUNDUP((uint64)pa_start);
+  
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
     kfree(p);
 }
@@ -47,6 +53,7 @@ void
 kfree(void *pa)
 {
   struct run *r;
+  int cpu;
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
@@ -55,11 +62,17 @@ kfree(void *pa)
   memset(pa, 1, PGSIZE);
 
   r = (struct run*)pa;
-
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+	
+	// Lock
+	push_off();
+	cpu = cpuid();
+	pop_off(); // Fine to enable interrupt here
+	
+  acquire(&kmem[cpu].lock);
+  r->next = kmem[cpu].freelist;
+  kmem[cpu].freelist = r;
+  // kmem[cpu].len += 1;
+  release(&kmem[cpu].lock);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -69,14 +82,49 @@ void *
 kalloc(void)
 {
   struct run *r;
+  int cpu;
+	
+	// Lock
+	push_off();
+	cpu = cpuid();
+	pop_off(); // Fine to enable interrupt here
+  
+  acquire(&kmem[cpu].lock);
+  r = kmem[cpu].freelist;
+  if(r){
+    kmem[cpu].freelist = r->next;
+  	release(&kmem[cpu].lock);
+  	memset((char*)r, 5, PGSIZE); // fill with junk
+  	return (void*)r;
+  }
+  // Lock
+  else {
+  	release(&kmem[cpu].lock);
+  	return (void *)ksteal(cpu); // may take time
+  }
+}
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
-  if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+// Lock
+// Try to steal free pages from other CPU
+// Returns a pointer that the kernel can use.
+// Returns 0 if the memory cannot be allocated.
+void *
+ksteal(const int cpu)
+{
+	struct run *r;
 
-  if(r)
-    memset((char*)r, 5, PGSIZE); // fill with junk
-  return (void*)r;
+	for(int i = cpu + 1; i != cpu;i = (i + 1) % NCPU){
+		// Fine when there are less than NCPU cpus
+		acquire(&kmem[i].lock);
+		r = kmem[i].freelist;
+		if(r){
+  		kmem[i].freelist = r->next;
+  		release(&kmem[i].lock);
+  		memset((char*)r, 5, PGSIZE); // fill with junk
+  		return (void *)r;
+  	}
+  	release(&kmem[i].lock);
+	}
+	
+	return 0;
 }
