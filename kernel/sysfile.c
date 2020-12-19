@@ -321,6 +321,33 @@ sys_open(void)
     end_op();
     return -1;
   }
+  
+  // Fs : symlink
+  // find the correct inode if the file is a soft link
+  // note that ip->lock is held
+  if(ip->type == T_SYMLINK && !(omode & O_NOFOLLOW)){
+  	// search at depth 10
+  	int depth = 0;
+  	char path[MAXPATH];
+  	while(depth < DEPTH && ip->type == T_SYMLINK){
+  	  readi(ip, 0, (uint64)path, 0, MAXPATH);
+  	  iunlockput(ip); // release ip->lock and decrement the refcnt in time
+  	  
+  	  if((ip = namei(path)) == 0){
+        end_op();
+        return -1;
+      }
+      ilock(ip);
+      depth++;
+  	}
+  	
+  	// cyclic links
+  	if(depth == DEPTH){
+  	  iunlockput(ip); // release ip->lock and decrement the refcnt in time
+  	  end_op();
+  	  return -1;
+  	}
+  }
 
   if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
     if(f)
@@ -482,5 +509,37 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64
+sys_symlink(void)
+{
+  struct inode *ip;
+  char target[MAXPATH], path[MAXPATH];
+  
+  if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
+  	return -1;
+  	
+  begin_op();
+  
+  // create() has coped with all the drudgeries.
+  // the in-mem inode must be valid right now.
+  // ip->lock is held,
+  // and the file type is set to T_SYMLINK
+  ip = create(path, T_SYMLINK, 0, 0);
+  if(ip == 0){
+      end_op();
+      return -1;
+  }
+  
+  // ip->lock is currently held
+  writei(ip, 0, (uint64)target, 0, MAXPATH);
+  
+  // release ip->lock & decrease refcnt of ip
+  iunlockput(ip);
+  
+  end_op();
+  
   return 0;
 }
