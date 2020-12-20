@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fcntl.h"
 
 struct cpu cpus[NCPU];
 
@@ -133,7 +134,12 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
-
+  
+  // Mmap
+  // Initialize the user vma
+  for(int i = 0;i < MAXVMA;i++)
+    clearvma(p->vma + i);
+  
   return p;
 }
 
@@ -236,7 +242,7 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
-
+  
   release(&p->lock);
 }
 
@@ -302,6 +308,14 @@ fork(void)
 
   np->state = RUNNABLE;
 
+	// Mmap
+	// copy vma & add refcnt to the open file table
+	for(int i = 0;i < MAXVMA;i++){
+		copyvma(np->vma + i, p->vma + i);
+		if(p->vma[i].pf)
+			filedup(p->vma[i].pf);
+	}
+	
   release(&np->lock);
 
   return pid;
@@ -343,6 +357,19 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+
+	// Mmap
+	// unmap all vma, and write back if it is shared and writable
+	for(int i = 0;i < MAXVMA;i++)
+		if(p->vma[i].addr != (uint64)-1 && p->vma[i].pf){
+			struct vma *pvma = p->vma + i;
+			struct file *pf = pvma->pf;
+			unmapfilewrite(pvma, pvma->addr, pvma->len);
+			
+			fileclose(pf);
+			clearvma(pvma);
+			// page table will later be freed by parent when calling wait
+		} 
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){
@@ -700,4 +727,43 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// Mmap
+void setvma(struct vma *pvma, uint64 addr, uint64 len, \
+						int prot, int shared, uint64 offset, struct file *pf)
+{
+	pvma->addr = addr;
+	pvma->len = len;
+	pvma->prot = prot;
+	pvma->shared = shared;
+	pvma->offset = offset;
+	pvma->pf = pf;
+}
+
+void clearvma(struct vma *pvma)
+{
+	pvma->addr = (uint64)-1;
+	pvma->len = 0;
+	pvma->prot = 0;
+	pvma->shared = 0;
+	pvma->offset = 0;
+	pvma->pf = (struct file *)0;
+}
+
+void copyvma(struct vma *to, struct vma *from)
+{
+	to->addr = from->addr;
+	to->len = from->len;
+	to->prot = from->prot;
+	to->shared = from->shared;
+	to->offset = from->offset;
+	to->pf = from->pf;
+}
+
+int withinvma(struct vma *pvma, uint64 va)
+{
+	if(pvma->addr == (uint64)-1)
+		return 0;
+	return pvma->addr <= va && va < pvma->addr + pvma->len;
 }

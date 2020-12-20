@@ -488,11 +488,134 @@ sys_pipe(void)
 uint64
 sys_mmap(void)
 {
+	uint64 tmp, len, sz;
+	int prot, shared, fd;
+	struct file *pf;
+	
+	// Fetch & Check argument
+	if(argaddr(0, &tmp) < 0 || tmp)
+		return -1;
+	if(argaddr(1, &len) < 0 || !len) // uint64
+		return -1;
+	if(argint(2, &prot) < 0)
+		return -1;
+	if(argint(3, &shared) < 0)
+		return -1;
+	if(argfd(4, &fd, &pf) < 0) // argfd won't increament the refcnt of pf
+		return -1;
+	if(argaddr(5, &tmp) < 0) // uint64
+	  return -1;
+	  
+	// shared page?
+	shared &= (MAP_PRIVATE | MAP_SHARED);
+	if(shared == (MAP_PRIVATE | MAP_SHARED) || !shared)
+		return -1;
+	shared &= MAP_SHARED;
+	
+	// protection check
+	prot &= (PROT_READ | PROT_WRITE);
+	if(!prot)
+		return -1;
+	// write to a non-writable file
+	if((prot & PROT_WRITE) && !pf->writable && shared)
+		return -1;
+	
+	// find a user vma
+	struct proc *p = myproc();
+	for(int i = 0;i < MAXVMA;i++){
+		if(p->vma[i].addr != (uint64)-1)
+			continue;
+
+		// extend current space to hold the mmap content
+		// mmap context are always page-aligned to facilitate munmap
+		sz = p->sz;
+		if(growproc(PGROUNDUP(sz) - sz) < 0)
+			return -1;
+		sz = p->sz;
+		if(growproc(PGROUNDUP(len)) < 0)
+			return -1;
+		setvma(p->vma + i, sz, len, prot, shared, 0, pf);
+		
+		// increment refcnt of pf to hold it in the open file table
+		filedup(pf);
+		
+		// no lazy allocation for the time being
+		// may not use fileread since pf->off can be non-zero
+		begin_op();
+		ilock(pf->ip);
+		readi(pf->ip, 1, sz, 0, len);
+		iunlock(pf->ip);
+		end_op();
+		
+		return sz;
+	}
+	
+	// fail to find a user vma
 	return -1;
 }
 
 uint64
 sys_munmap(void)
 {
+	uint64 va, len;
+	struct proc *p;
+	struct vma *pvma;
+	struct file *pf;
+	
+	// Fetch & Check argument
+	if(argaddr(0, &va) < 0)
+		return -1;
+	if(argaddr(1, &len) < 0) // uint64
+		return -1;
+	
+	p = myproc();
+	pvma = p->vma;
+	for(;pvma < p->vma + MAXVMA;pvma++)
+		if(withinvma(pvma, va)){
+			pf = pvma->pf;
+			if(len > pvma->len)
+				return -1;
+				
+			// if shared and writable, then write back to original file
+			// may not use filewrite since pf->off may not match
+			unmapfilewrite(pvma, va, len);
+						
+			if(va == pvma->addr && len == pvma->len){
+				fileclose(pf);
+				clearvma(pvma);
+				uvmunmap(p->pagetable, PGROUNDDOWN(va), \
+							(PGROUNDUP(va + len) - PGROUNDDOWN(va)) / PGSIZE, 1);
+				return 0;
+			}
+			else if(va == pvma->addr){
+				pvma->addr += len;
+				pvma->len -= len;
+				pvma->offset += len;
+				uvmunmap(p->pagetable, PGROUNDDOWN(va), \
+							(PGROUNDDOWN(pvma->addr) - PGROUNDDOWN(va)) / PGSIZE, 1);
+				return 0;
+			}
+			else if(va + len == pvma->addr + pvma->len){
+				pvma->len -= len;
+				uvmunmap(p->pagetable, PGROUNDUP(pvma->addr + pvma->len), \
+							(PGROUNDUP(va + len) - PGROUNDUP(pvma->addr + pvma->len)) / PGSIZE, 1);
+				return 0;
+			}
+			
+			return -1;
+		}
+		
 	return -1;
+}
+
+void
+unmapfilewrite(struct vma *pvma, uint64 va, uint64 len){
+	struct file *pf = pvma->pf;
+	if((pvma->prot & PROT_WRITE) && pvma->shared){
+		begin_op();
+		ilock(pf->ip);
+		writei(pf->ip, 1, va, pvma->offset + va - pvma->addr, len);
+		iunlock(pf->ip);
+		end_op();
+	}
 }

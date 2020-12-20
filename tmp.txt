@@ -1,0 +1,2 @@
+1. mmap not lazy allocation (if then, page-align sz)
+2. write back every page if MAP_SHARED has been declared (instead of using D bits)

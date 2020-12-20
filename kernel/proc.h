@@ -1,3 +1,6 @@
+// Mmap
+#define MAXVMA 16
+
 // Saved registers for kernel context switches.
 struct context {
   uint64 ra;
@@ -82,6 +85,17 @@ struct trapframe {
 
 enum procstate { UNUSED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+
+// Mmap
+struct vma {
+	uint64 addr;		// 0xffffffffffffffff marked that the slot is not used
+	uint64 len;
+	int prot;
+	int shared;
+	uint64 offset;	// In case that munmap() only unmap the first few pages
+	struct file *pf;
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -95,6 +109,9 @@ struct proc {
   int pid;                     // Process ID
 
   // these are private to the process, so p->lock need not be held.
+  // Mmap
+  struct vma vma[MAXVMA];      // User Virtual Memory Area
+  
   uint64 kstack;               // Virtual address of kernel stack
   uint64 sz;                   // Size of process memory (bytes)
   pagetable_t pagetable;       // User page table
