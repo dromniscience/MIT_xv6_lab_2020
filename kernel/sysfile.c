@@ -532,20 +532,26 @@ sys_mmap(void)
 		if(growproc(PGROUNDUP(sz) - sz) < 0)
 			return -1;
 		sz = p->sz;
-		if(growproc(PGROUNDUP(len)) < 0)
+		// Mmap : lazy allocation
+		// if(growproc(PGROUNDUP(len)) < 0)
+		//	return -1;
+		if(lazy_growproc(PGROUNDUP(len)) < 0)
 			return -1;
 		setvma(p->vma + i, sz, len, prot, shared, 0, pf);
 		
 		// increment refcnt of pf to hold it in the open file table
 		filedup(pf);
 		
-		// no lazy allocation for the time being
-		// may not use fileread since pf->off can be non-zero
-		begin_op();
-		ilock(pf->ip);
-		readi(pf->ip, 1, sz, 0, len);
-		iunlock(pf->ip);
-		end_op();
+		// // no lazy allocation for the time being
+		// // may not use fileread since pf->off can be non-zero
+		// begin_op();
+		// ilock(pf->ip);
+		// readi(pf->ip, 1, sz, 0, len);
+		// iunlock(pf->ip);
+		// end_op();
+		
+		// Mmap : lazy allocation
+		
 		
 		return sz;
 	}
@@ -609,7 +615,8 @@ sys_munmap(void)
 }
 
 void
-unmapfilewrite(struct vma *pvma, uint64 va, uint64 len){
+unmapfilewrite(struct vma *pvma, uint64 va, uint64 len)
+{
 	struct file *pf = pvma->pf;
 	if((pvma->prot & PROT_WRITE) && pvma->shared){
 		begin_op();
@@ -618,4 +625,15 @@ unmapfilewrite(struct vma *pvma, uint64 va, uint64 len){
 		iunlock(pf->ip);
 		end_op();
 	}
+}
+
+void
+mapfileread(struct vma *pvma, uint64 va, uint64 offset, uint64 len)
+{
+	struct file *pf = pvma->pf;
+	begin_op();
+	ilock(pf->ip);
+	readi(pf->ip, 1, va, offset, len);
+	iunlock(pf->ip);
+	end_op();
 }

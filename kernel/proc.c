@@ -266,6 +266,27 @@ growproc(int n)
   return 0;
 }
 
+// Mmap : lazy allocation
+// Lazily grow user space but instantly shrink it if n < 0
+// Return 0 on success, -1 on failure
+// Warning: weak security check
+int
+lazy_growproc(uint64 n)
+{
+  uint sz;
+  struct proc *p = myproc();
+
+  sz = p->sz;
+  if(n > 0){
+    sz += n;
+  } else if(n < 0){
+    sz = uvmdealloc(p->pagetable, sz, sz + n);
+  }
+  p->sz = sz;
+  return 0;
+}
+
+
 // Create a new process, copying the parent.
 // Sets up child kernel stack to return as if from fork() system call.
 int

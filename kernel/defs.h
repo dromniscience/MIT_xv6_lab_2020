@@ -88,6 +88,8 @@ int             cpuid(void);
 void            exit(int);
 int             fork(void);
 int             growproc(int);
+// Mmap : lazy allocation
+int             lazy_growproc(uint64);
 void            proc_mapstacks(pagetable_t);
 pagetable_t     proc_pagetable(struct proc *);
 void            proc_freepagetable(pagetable_t, uint64);
@@ -152,6 +154,7 @@ void            syscall();
 // Mmap
 // sysfile.c
 void            unmapfilewrite(struct vma *, uint64, uint64);
+void            mapfileread(struct vma *, uint64, uint64, uint64);
 
 // trap.c
 extern uint     ticks;

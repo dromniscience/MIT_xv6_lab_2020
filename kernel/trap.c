@@ -5,6 +5,9 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+// Mmap : lazy allocation
+#include "fcntl.h"
+
 
 struct spinlock tickslock;
 uint ticks;
@@ -67,6 +70,52 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if(r_scause() == 0xD || r_scause() == 0xF){
+  	// Mmap : lazy allocation
+  	char *mem = (char *)0;
+  	uint64 va = r_stval();
+  	int i;
+  	
+  	if(va >= p->sz || va <= PGROUNDDOWN(p->trapframe->sp))
+  		p->killed = 1;
+  	
+  	if(!p->killed){
+  		int mark = 0;
+  		for(i = 0;i < MAXVMA;i++){
+  			if(withinvma(p->vma + i, va)){
+  				mark = 1;
+  				va = p->vma[i].addr > PGROUNDDOWN(va) ? p->vma[i].addr : PGROUNDDOWN(va);
+  				// try to write a non-writable page
+  				if(!(p->vma[i].prot & PROT_WRITE) && r_scause() == 0xF)
+  					p->killed = 1;
+  				// try to read a non-readable page
+  				if(!(p->vma[i].prot & PROT_READ) && r_scause() == 0xD)
+  					p->killed = 1;
+  				break;
+  			}
+  		}
+  		if(mark && !p->killed)
+    		mem = kalloc();
+    	if(mem == 0)
+    		p->killed = 1;
+    }
+    
+    if(!p->killed){
+    	memset(mem, 0, PGSIZE);
+    	int perm = PTE_U;
+    	perm |= ((p->vma[i].prot & PROT_READ) ? PTE_R : 0);
+    	perm |= ((p->vma[i].prot & PROT_WRITE) ? PTE_W : 0);
+    	
+    	if(mappages(p->pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, perm) != 0){
+      	kfree(mem);
+      	printf("usertrap(): mapping page failed\n");
+      	p->killed = 1;
+    	}
+    }
+    // read file
+    if(!p->killed)
+    	mapfileread(p->vma + i, va, p->vma[i].offset + va - p->vma[i].addr, PGROUNDDOWN(va + PGSIZE) - va);
+  	
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
