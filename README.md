@@ -20,20 +20,21 @@ This repo contains the solution to each lab except for the last one, which I may
 
 Also, in this branch, I displayed my lab reports which mainly record how I accomplished the lab, what schemes were adopted, why certain tricks had to be done in the way illustrated in the code and what could be further improved. Suggestions are welcome, and you could email your advice to me at the address listed in the front of each report.
 
-**All reports are in Chinese.**
+**All lab reports are in Chinese.**
 
 ## Review
 These labs vary quite a lot in terms of difficulty. Yet they have something in common: They are carefully and elegantly designed, catering to both interest and challenge.
 
-The list of the difficulty in descending order from my perspective runs as follow, but I should declare in advance that "difficulty" within this context purely refers to how intricate and creative the schemes can be, regardless of their gross workload or the time spent understanding the supporting materials.
+The list of the difficulty of these labs in descending order from my perspective runs as follows, but I should declare in advance that "difficulty" within this context purely refers to how intricate and creative the schemes can be, regardless of their gross workload or the time spent understanding the supporting materials.
 
 1. mmap (If you want to implement a high-efficient system)
 2. COW (If you want to make it as robust as possible)
 3. Page table (Be inventive and scrupulous)
 4. Lazy allocation (Figure out all necessary spots that need modifying)
 5. Traps (Think before you leap, with special regard to how sysreturn works)
-6. File system (be familiar with interface provided by upper layers of xv6 file system)
-7. Utils (Probably your first time to use Unix tools such as pipe)
-8. Multithread (Do not panic, since it is done on your OS instead of xv6)
-9. System calls (so long as you pay no heed to optional challenges :)
+6. Locks (It is quite likely that "No race, time out." Make use of certain constraints.)
+7. File system (be familiar with interface provided by upper layers of xv6 file system)
+8. Utils (Probably your first time to use Unix tools such as pipe)
+9. Multithread (Do not panic, since it is done on your OS instead of xv6)
+10. System calls (so long as you pay no heed to optional challenges :)
 
